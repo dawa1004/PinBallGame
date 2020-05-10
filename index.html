@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+
+  <title>PONG GAME</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Century Gothic";
+      font-size: 16px;
+    }
+
+    h1 {
+
+    }
+
+    #container {
+      text-align: center;
+      margin: 5px auto;
+    }
+    #mycanvas {
+      background: #AAEDFF;
+    }
+    #btn {
+      margin: 3px auto;
+      width: 200px;
+      padding: 5px;
+      background: #00AAFF;
+      border-radius: 3px;
+      cursor: pointer;
+      color: #fff;
+    }
+    #btn:hover {
+      opacity: 0.8;
+    }
+    .info {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">
+    <h1>ピンポンゲーム</h1>
+    <h2>ルール説明</h2>
+    <p>STARTで開始</p>
+    <p>SCORE[3]ごとに難易度がアップします</p>
+    <p>ボールが落ちたらGAMEOVER</p>
+    <p>REPLAYでもう一度できます</p>
+  </div>
+  <div id="container">
+    <canvas width="280" height="280" id="mycanvas">
+      Canvasに対応したブラウザを用意してください。
+    </canvas>
+    <div id="btn">START</div>
+  </div>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+  <script>
+    $(function() { // jqueryの決り文句
+      //変数の宣言
+      var ctx,
+          myPaddle,
+          myBall,
+          mouseX, //mouse座標管理
+          score,
+          scoreLabel,
+          isPlaying = false, //今プレイしているかどうかの管理
+          timerId;
+
+
+      var canvas = document.getElementById('mycanvas'); // canvasが使えるかどうかのチェック
+        if (!canvas || !canvas.getContext) return false; // 使えなければ処理の中止
+        ctx = canvas.getContext('2d'); //こちらのctxを通じ描画
+
+        //オブジェクト作成
+        var Label = function(x, y) { //x,y座標を与えるとラベルを描画
+          this.x = x;
+          this.y = y;
+          this.draw = function(text) { //描画呼び出し
+            ctx.font = 'bold 14px "Century Gothic"';
+            ctx.fillStyle = '#00AAFF';
+            ctx.textAlign = 'left';
+            ctx.fillText(text, this.x, this.y);
+          }
+        }
+        var Ball = function(x, y, vx, vy, r) { //座標 速度 半径
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.r = r;
+          this.draw = function() { //描画
+            ctx.beginPath();
+            ctx.fillStyle = '#FF0088';
+            ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI, true); //円弧
+            ctx.fill();
+          }
+          this.move = function() { //動かす
+            this.x += this.vx;
+            this.y += this.vy;
+            // 左端 or 右端 ボール跳ね返り（反転）
+            if (this.x + this.r > canvas.width || this.x - this.r < 0) {
+                this.vx *= -1;
+            }
+            // 上 ボール跳ね返り（反転）
+            if (this.y - this.r < 0) {
+              this.vy *= -1;
+            }
+            // 下 ゲームオーバー
+            if (this.y + this.r > canvas.height) {
+              // alert("game over");
+              isPlaying = false; //プレイしていない状態を表す
+              $('#btn').text('REPLAY?').fadeIn(); //STARTボタンをREPLAYボタンに変更
+            }
+          };
+          this.checkCollision = function(paddle) { //パドルと衝突したか調べる
+            //パドルとの判定
+            if ((this.y + this.r > paddle.y && this.y + this.r < paddle.y + paddle.h) &&
+                (this.x > paddle.x - paddle.w / 2 && this.x < paddle.x + paddle.w / 2)) {
+                  this.vy *= -1; //上に跳ね返る
+                  score++; //パドルに当たった時スコア増加
+                  if (score % 3 === 0) { //スコアが3点入る度に
+                    this.vx *= 1.2; //ｘ方向の速度 1.2倍
+                    paddle.w *= 0.8; //パドルの幅 0.8倍
+                  }
+                }
+          }
+        }
+        var Paddle = function(w, h) { // Paddleに色々な性質 幅と高さを渡すと設定される
+          this.w = w;
+          this.h = h;
+          this.x = canvas.width / 2;
+          this.y = canvas.height - 30;
+          this.draw = function() { //drawメソッド作成
+            ctx.fillStyle = '#00AAFF';
+            ctx.fillRect(this.x - this.w / 2, this.y, this.w, this.h); //x座標を真ん中に調整
+          };
+          this.move = function() {
+            this.x = mouseX - $('#mycanvas').offset().left;
+          }
+
+        };
+
+        //ボールの出現位置を乱数を使って違ったところから出す
+        function rand(min, max) { //minとmaxの間のランダムな数値を出す
+          return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function init() { //初期化処理
+          score = 0; //スコアの初期化
+          isPlaying = true; //プレイしていることを表す
+          myPaddle = new Paddle(100, 10); //Paddleの性質をもったオブジェクトを代入
+          myBall = new Ball(rand(50, 250), rand(10, 80), 5, 5, 6); //Ballの性質をもったオブジェクトを代入
+          scoreLabel = new Label(10, 25); //ラベル表示 呼び出し
+          scoreLabel.draw('SCORE: ' + score); //スコア描画
+        }
+
+
+        function clearStage() { //画面描画をクリアする関数
+          ctx.fillStyle = '#AAEDFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function update() { //描画と移動を繰り返す
+          //オブジェクト
+          clearStage();
+          scoreLabel.draw('SCORE: ' + score); //スコア描画
+          myPaddle.draw();
+          myPaddle.move();
+          myBall.draw();
+          myBall.move();
+          myBall.checkCollision(myPaddle); //パドルとの衝突 メソッド
+          timerId = setTimeout(function() {
+              update(); //ループ
+          }, 30); //30ミリ秒
+          if (!isPlaying) clearTimeout(timerId); //isPlayingがfalseだったらタイマーを止める
+        }
+
+        $('#btn').click(function() { //ボタンを押した時の処理
+          $(this).fadeOut(); //ボタン隠す
+          init(); //初期化
+          update();
+        });
+
+        $('body').mousemove(function(e) { //マウスの座標を取得
+          mouseX = e.pageX; //マウスが動いたら取得する
+        });
+    });
+  </script>
+</body>
+</html>
